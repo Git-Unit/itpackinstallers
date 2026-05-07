@@ -528,8 +528,28 @@ const apps = [
             {
                 key: 'url',
                 label: 'Agent Installer URL',
-                placeholder: 'https://your-nable-portal.com/download/WindowsAgentSetup.exe',
-                hint: 'Generate and copy the agent download link from your N-Able RMM dashboard.',
+                placeholder: 'https://github.com/Git-Unit/itpackinstallers/releases/download/v2/414WindowsAgentSetup.exe',
+                defaultValue: 'https://github.com/Git-Unit/itpackinstallers/releases/download/v2/414WindowsAgentSetup_VALID_UNTIL_2026_05_28.exe',
+                hint: 'Hosted on GitHub Releases (v2). Note: this installer expires 2026-05-28 — re-upload a new one before then.',
+                required: true
+            }
+        ]
+    },
+    {
+        id: 'nable-mcp',
+        name: 'N-Able MCP Agent',
+        description: 'Managed Care Platform agent for N-Central',
+        category: 'Security & Management',
+        icon: '🔧',
+        type: 'custom',
+        defaultChecked: true,
+        configFields: [
+            {
+                key: 'url',
+                label: 'MCP Installer URL',
+                placeholder: 'https://github.com/Git-Unit/itpackinstallers/releases/download/V3/MSPA4NCentral.exe',
+                defaultValue: 'https://github.com/Git-Unit/itpackinstallers/releases/download/V3/MSPA4NCentral-7.00.46-20230421.exe',
+                hint: 'Hosted on GitHub Releases (v3).',
                 required: true
             }
         ]
@@ -698,6 +718,9 @@ function buildScript(selected) {
 #  Installs  : ${names}
 # =================================================================
 
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+
 # Self-elevate to Administrator
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "Elevating to Administrator..." -ForegroundColor Yellow
@@ -724,10 +747,10 @@ $FailList    = @()
 function Install-WingetApp {
     param([string]$Name, [string]$WingetId)
     Write-Host "[>>] Installing $Name..." -ForegroundColor Yellow
-    winget install --id $WingetId -e --silent \`
+    winget install --id $WingetId -e --silent --source winget \`
         --accept-source-agreements --accept-package-agreements
-    # Exit code -1978335189 means already installed — treat as success
-    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
+    # -1978335189 = already installed, -1978335138 = no applicable update (also fine)
+    if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189 -or $LASTEXITCODE -eq -1978335138) {
         Write-Host "[OK] $Name installed successfully." -ForegroundColor Green
         $script:SuccessList += $Name
     } else {
@@ -755,6 +778,11 @@ function Install-CustomApp {
         if ($Proc.ExitCode -eq 0) {
             Write-Host "[OK] $Name installed successfully." -ForegroundColor Green
             $script:SuccessList += $Name
+        } elseif ($Proc.ExitCode -eq 206 -and $Name -eq "SentinelOne") {
+            Write-Host "[!!] SentinelOne exited with code 206 — this usually means an existing" -ForegroundColor Red
+            Write-Host "     SentinelOne agent is already installed and blocking the install." -ForegroundColor Red
+            Write-Host "     Uninstall the existing agent first, then re-run this script." -ForegroundColor Red
+            $script:FailList += $Name
         } else {
             Write-Host "[!!] $Name installer exited with code $($Proc.ExitCode)" -ForegroundColor Red
             $script:FailList += $Name
@@ -786,6 +814,11 @@ Write-Host ""
             const url = state[app.id].config['url'] || 'PLACEHOLDER_NABLE_URL';
             s += `# N-Able RMM Agent — silent install\n`;
             s += `Install-CustomApp \`\n    -Name "N-Able RMM Agent" \`\n    -Url "${url}" \`\n    -Arguments "/S"\n\n`;
+
+        } else if (app.id === 'nable-mcp') {
+            const url = state[app.id].config['url'] || 'PLACEHOLDER_NABLE_MCP_URL';
+            s += `# N-Able MCP Agent — silent install\n`;
+            s += `Install-CustomApp \`\n    -Name "N-Able MCP Agent" \`\n    -Url "${url}" \`\n    -Arguments "/S"\n\n`;
         }
     });
 
