@@ -778,17 +778,16 @@ function Install-CustomApp {
         if ($Proc.ExitCode -eq 0) {
             Write-Host "[OK] $Name installed successfully." -ForegroundColor Green
             $script:SuccessList += $Name
-        } elseif ($Proc.ExitCode -eq 206 -and $Name -eq "SentinelOne") {
-            Write-Host "[!!] SentinelOne exited with code 206 — this usually means an existing" -ForegroundColor Red
-            Write-Host "     SentinelOne agent is already installed and blocking the install." -ForegroundColor Red
-            Write-Host "     Uninstall the existing agent first, then re-run this script." -ForegroundColor Red
+        } elseif ($Proc.ExitCode -eq 206) {
+            Write-Host "[!!] $Name exited with code 206 - a previous install may be blocking it." -ForegroundColor Red
+            Write-Host "     Uninstall any existing version first, then re-run this script." -ForegroundColor Red
             $script:FailList += $Name
         } else {
             Write-Host "[!!] $Name installer exited with code $($Proc.ExitCode)" -ForegroundColor Red
             $script:FailList += $Name
         }
     } catch {
-        Write-Host "[!!] $Name failed: $_" -ForegroundColor Red
+        Write-Host "[!!] $Name failed: $($_.Exception.Message)" -ForegroundColor Red
         $script:FailList += $Name
     }
     Write-Host ""
